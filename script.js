@@ -9,26 +9,48 @@ popup.style.display = 'block'; // Show the popup by default
 
 // Hide the popup when the user clicks the "Cancel" button
 cancelButton.addEventListener('click', () => {
-    popup.style.display = 'none';
+  popup.style.display = 'none';
 });
 
 // Handle the download when the user clicks the "Download Extension" button
 downloadButton.addEventListener('click', () => {
-    const extensionId = extensionIdInput.value.trim();
-    const crxdl = new crxjs.Crxdl({
-        url: `https://chrome.google.com/webstore/detail/${extensionId}`,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-        }
+  const extensionId = extensionIdInput.value.trim();
+  const url = `https://chrome.google.com/webstore/detail/${extensionId}`;
+
+  // Create a new blob to hold the extension's manifest
+  const manifest = {
+    "manifest_version": 2,
+    "name": "Extension Installer",
+    "version": "1.0",
+    "description": "A simple extension to install other extensions",
+    "background": {
+      "scripts": ["background.js"],
+      "persistent": false
+    },
+    "permissions": ["activeTab"]
+  };
+
+  const backgroundScript = `
+    chrome.runtime.onInstalled.addListener(function() {
+      chrome.tabs.create({ url: '${url}' });
     });
-    crxdl.download(extensionId).then((downloadUrl) => {
-        // Create a new anchor tag to download the extension
-        const downloadLink = document.createElement('a');
-        downloadLink.href = downloadUrl;
-        downloadLink.download = `${extensionId}.crx`;
-        downloadLink.click();
-        popup.style.display = 'none';
-    }).catch((error) => {
-        console.error(error);
-    });
+  `;
+
+  const blob = new Blob([JSON.stringify(manifest)], {type: "application/json"});
+  const backgroundBlob = new Blob([backgroundScript], {type: "application/javascript"});
+
+  // Create a new zip file to hold the extension
+  const zip = new JSZip();
+  zip.file("manifest.json", blob);
+  zip.file("background.js", backgroundBlob);
+
+  // Generate the zip file as a blob
+  zip.generateAsync({type: "blob"}).then(function (blob) {
+    // Create a new anchor tag to download the zip file
+    const downloadLink = document.createElement('a');
+    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.download = `${extensionId}.crx`;
+    downloadLink.click();
+    popup.style.display = 'none';
+  });
 });
